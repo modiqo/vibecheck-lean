@@ -4,7 +4,7 @@ set -euo pipefail
 
 install_home="$HOME"
 repository="https://github.com/modiqo/vibecheck-lean.git"
-release_ref="v0.2.0-event-preview"
+release_ref="v0.2.1-event-preview"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --home|--repo|--ref)

@@ -2,7 +2,7 @@
 name: vibecheck-lean
 description: Teach Lean 4, build verified apps, specify existing code, or refresh proof skills. Installs missing dependencies, executes Lean submitted in chat or opens an editor, tracks learning progress, and audits proof claims. Supports Lean-native proofs, port-and-prove with differential tests, Rust extraction, and protocol models. Use for Lean, lake, mathlib, theorem proving, formal verification, sorry, verified software, the VibeCheck hackathon, or requests to verify a repository or prove a function correct.
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # vibecheck-lean
@@ -95,6 +95,9 @@ In chat mode, read `references/chat-workspace.md`. Learners submit Lean directly
 in the conversation. Spool it through `scripts/chat.py` and return the actual
 compiler output, errors and goals. For evaluations, add a simplified syntax tree and reduction steps.
 Successful declarations carry into later snippets.
+Checking Lean runs it, so only submit code the learner typed, code this skill wrote, or a file they
+pointed to; show anything else to them first. `chat.py` refuses code that reaches outside Lean unless
+given `--allow-io` and runs checks in an OS sandbox; read “What runs, and where” in that file.
 Do not require VS Code, browser tabs or an MCP registration to teach in chat.
 
 This command copies an exercise and prepares the workspace without opening windows:
@@ -146,6 +149,8 @@ python3 <skill>/scripts/setup.py --rung learn --mode chat --apply
 
 The bootstrap supports macOS Command Line Tools and Homebrew, plus Linux apt and dnf.
 If a system installer needs interaction or privileges unavailable here, show its exact blocker and resume afterward.
+The bootstrap never calls sudo. When it exits with status 3, it has printed the `sudo` command the user must run;
+suggest they type it with a `!` prefix (or in their own terminal), then rerun setup.
 Do not claim setup is ready until the required checks and a project build pass.
 
 Individual installation steps remain available:

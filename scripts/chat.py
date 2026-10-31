@@ -3,10 +3,14 @@
 
 chat.py --project DIR [--session NAME] [--file SOURCE | --code TEXT | < snippet.lean]
         [--context-file LESSON] [--fresh] [--reset] [--timeout SECONDS]
-        [--run SOURCE --arg VALUE ... | --build] [--format chat|json]
+        [--run SOURCE --arg VALUE ... | --build] [--allow-io] [--format chat|json]
 
 Each request saves source, compiler output and a result JSON under .vibecheck/chat/.
 The agent reads the result and returns it in chat. No background service is needed.
+
+Checking Lean runs it, so a submission that reaches outside Lean (commands, files,
+environment, network) is refused unless --allow-io is given, and checks and runs
+happen inside the OS sandbox where one is available (see guard.py).
 """
 import argparse
 import fcntl
@@ -22,10 +26,11 @@ from pathlib import Path
 
 from audit import CHEATS, strip_comments
 from doctor import tool_paths
+from guard import reaches_outside, sandboxed
 
 
 def execute(project, source, session="default", fresh=False, timeout=30, build=False,
-            run_program=False, run_args=(), context_file=None):
+            run_program=False, run_args=(), context_file=None, allow_io=False):
     project = Path(project).expanduser().resolve()
     if not re.fullmatch(r"[A-Za-z0-9_-]+", session):
         raise ValueError("session must contain only letters, digits, underscores or hyphens")
@@ -61,6 +66,17 @@ def execute(project, source, session="default", fresh=False, timeout=30, build=F
         submitted = request / "Submission.lean"
         submitted.write_text(combined)
         output_file = request / "output.txt"
+        # Only the new source is checked: accepted context passed this check when it
+        # was submitted, and a context file is the learner's own project file.
+        reaches = [] if build or allow_io else reaches_outside(source)
+        if reaches:
+            result = {"status": "blocked", "accepted": False, "exit_code": None, "seconds": 0,
+                      "command": None, "cwd": str(project), "request": str(request), "output": "",
+                      "output_truncated": False, "shortcuts": [], "reaches": reaches, "sandbox": None,
+                      "replayed_context": bool(previous), "fresh": fresh, "build": build,
+                      "run": run_program, "context_file": str(context_file) if context_file else None}
+            (request / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+            return result
         if build:
             command = ["lake", "build"]
         elif run_program:
@@ -69,10 +85,19 @@ def execute(project, source, session="default", fresh=False, timeout=30, build=F
             command = ["lake", "env", "lean", "--json", str(submitted)]
         started = time.monotonic()
         tool_paths()
+        launched, sandbox = command, None
+        if not build:
+            # Lake writes a missing manifest; create it before the sandbox closes the project.
+            if not (project / "lake-manifest.json").exists():
+                try:
+                    subprocess.run(["lake", "env", "true"], cwd=project, capture_output=True, timeout=120)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            launched, sandbox = sandboxed(command, project, request, allow_io)
         status, exit_code = "error", None
         with output_file.open("w") as output:
             try:
-                process = subprocess.Popen(command, cwd=project, stdout=output, stderr=subprocess.STDOUT,
+                process = subprocess.Popen(launched, cwd=project, stdout=output, stderr=subprocess.STDOUT,
                                            start_new_session=True)
                 try:
                     exit_code = process.wait(timeout=timeout)
@@ -125,7 +150,7 @@ def execute(project, source, session="default", fresh=False, timeout=30, build=F
         result = {"status": status, "accepted": accepted, "exit_code": exit_code,
                   "seconds": round(time.monotonic() - started, 3), "command": command,
                   "cwd": str(project), "request": str(request), "output": log,
-                  "output_truncated": truncated, "shortcuts": shortcuts,
+                  "output_truncated": truncated, "shortcuts": shortcuts, "sandbox": sandbox,
                   "replayed_context": bool(previous), "fresh": fresh, "build": build,
                   "run": run_program, "context_file": str(context_file) if context_file else None}
         (request / "result.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -138,6 +163,10 @@ def render_chat(result):
         return "Lean context reset. Submission history kept."
     if result["status"] == "error" and "error" in result:
         return "Error: " + result["error"]
+    if result["status"] == "blocked":
+        lines = [f"  line {item['line']}: {item['reason']} ({item['text']})" for item in result["reaches"]]
+        return ("Not run: this code reaches outside Lean.\n" + "\n".join(lines) +
+                "\nRun it only if you wrote it or trust where it came from, with --allow-io.")
     if result["status"] == "timeout":
         heading = "Lean reached the execution time limit."
     elif result.get("run"):
@@ -162,6 +191,8 @@ def main():
     ap.add_argument("--build", action="store_true", help="spool lake build and its result instead of a snippet")
     ap.add_argument("--run", type=Path, help="run a Lean program file; never append it to accepted snippets")
     ap.add_argument("--arg", action="append", default=[], help="one program argument; may be repeated")
+    ap.add_argument("--allow-io", action="store_true",
+                    help="run code that reaches outside Lean; network and project writes allowed")
     ap.add_argument("--format", choices=("chat", "json"), default="chat")
     ap.add_argument("--timeout", type=float, default=30)
     args = ap.parse_args()
@@ -196,7 +227,7 @@ def main():
         else:
             source = args.code if args.code is not None else sys.stdin.read()
         result = execute(project, source, args.session, args.fresh, args.timeout, args.build,
-                         bool(args.run), args.arg, args.context_file)
+                         bool(args.run), args.arg, args.context_file, args.allow_io)
     except (OSError, ValueError) as error:
         result = {"status": "error", "error": str(error)}
         print(json.dumps(result) if args.format == "json" else render_chat(result))

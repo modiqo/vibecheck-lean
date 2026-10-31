@@ -20,6 +20,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import chat
 import doctor
+import guard
 import lesson
 
 # Avoid a third-party module named setup when invoked by a test runner.
@@ -43,7 +44,7 @@ class InstallerTests(unittest.TestCase):
         (self.source / "scripts/chat.py").write_text("# installer fixture\n")
         for arguments in [["init", "-q"], ["add", "."],
                           ["-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-qm", "Fixture"],
-                          ["tag", "v0.2.0-event-preview"]]:
+                          ["tag", "v0.2.1-event-preview"]]:
             subprocess.run(["git", *arguments], cwd=self.source, check=True, capture_output=True)
         self.home = self.root / "home with spaces"
 
@@ -235,6 +236,18 @@ class ChatIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(result["exit_code"])
         self.assertFalse((self.project / ".vibecheck/chat/default/Accepted.lean").exists())
 
+    def test_code_that_reaches_outside_lean_needs_allow_io(self):
+        source = '#eval (IO.FS.writeFile "escaped.txt" "x" : IO Unit)'
+        blocked = chat.execute(self.project, source)
+        self.assertEqual(blocked["status"], "blocked")
+        self.assertEqual(blocked["reaches"][0]["line"], 1)
+        self.assertFalse((self.project / "escaped.txt").exists())
+        self.assertIn("Not run: this code reaches outside Lean.", chat.render_chat(blocked))
+        allowed = chat.execute(self.project, source, allow_io=True)
+        self.assertEqual(allowed["status"], "checked", allowed["output"])
+        self.assertTrue((self.project / "escaped.txt").exists())
+        self.assertEqual(allowed["sandbox"], guard.available())
+
     def test_unsafe_session_path_is_rejected(self):
         with self.assertRaises(ValueError):
             chat.execute(self.project, "#eval 2", session="../../other")
@@ -328,11 +341,15 @@ class ChatIntegrationTests(unittest.TestCase):
         try:
             source = (SCRIPTS.parent / "assets/project-ladder/ApiCheck.lean").read_text()
             root = f"http://127.0.0.1:{server.server_address[1]}"
-            success = chat.execute(self.project, source, run_program=True, run_args=[root + "/healthy"])
+            blocked = chat.execute(self.project, source, run_program=True, run_args=[root + "/healthy"])
+            self.assertEqual(blocked["status"], "blocked")
+            success = chat.execute(self.project, source, run_program=True, run_args=[root + "/healthy"],
+                                   allow_io=True)
             self.assertEqual(success["exit_code"], 0, success["output"])
             self.assertIn("HTTP 200; healthy=true", success["output"])
             self.assertFalse(success["accepted"])
-            failure = chat.execute(self.project, source, run_program=True, run_args=[root + "/error"])
+            failure = chat.execute(self.project, source, run_program=True, run_args=[root + "/error"],
+                                   allow_io=True)
             self.assertEqual(failure["exit_code"], 1, failure["output"])
             self.assertIn("HTTP 503; healthy=false", failure["output"])
         finally:
@@ -371,6 +388,57 @@ class LessonTests(unittest.TestCase):
         for level in lesson.LEVELS:
             result = lesson.check(level)
             self.assertTrue(result["ok"], f"{level}: {result['problems']}")
+
+
+class GuardTests(unittest.TestCase):
+    def test_bundled_lessons_and_exercises_pass_the_gate(self):
+        root = SCRIPTS.parent / "assets"
+        for path in [*root.glob("exercises/**/*.lean"), root / "bridge/Bridge.lean"]:
+            self.assertEqual(guard.reaches_outside(path.read_text()), [], path)
+        for level in lesson.LEVELS:
+            for block in lesson.blocks(lesson.lesson_file(level).read_text()):
+                if block[0] == "fence" and block[1] == "lean":
+                    self.assertEqual(guard.reaches_outside("\n".join(block[3])), [], level)
+        flagged = guard.reaches_outside((root / "project-ladder/ApiCheck.lean").read_text())
+        self.assertEqual([(item["line"], item["text"]) for item in flagged], [(27, "IO.Process")])
+
+    def test_gate_sees_through_namespaces_and_ignores_comments(self):
+        cases = {'open IO.Process in\n#eval run { cmd := "sh" }': "open IO.Process",
+                 'open IO in\n#eval FS.readFile "x"': "FS.readFile",
+                 "run_cmd pure ()": "run_cmd",
+                 "#eval unsafeBaseIO (pure 1)": "unsafeBaseIO",
+                 '@[extern "system"] opaque sys : Nat': "@[extern",
+                 '#eval IO.getEnv "TOKEN"': "getEnv"}
+        for source, text in cases.items():
+            self.assertIn(text, [item["text"] for item in guard.reaches_outside(source)], source)
+        self.assertEqual(guard.reaches_outside("-- IO.Process\n/- run_cmd -/\ndef unsafeTake := 1"), [])
+
+    @unittest.skipUnless(guard.available(), "no OS sandbox on this machine")
+    def test_sandbox_limits_writes_and_network(self):
+        # A project outside the temp folder, so only .lake and the request stay writable.
+        with tempfile.TemporaryDirectory(dir=Path.home(), prefix=".vibecheck-test-") as folder:
+            project, request = Path(folder), Path(folder) / ".vibecheck/chat/x/1"
+            (project / ".lake").mkdir()
+            request.mkdir(parents=True)
+
+            def run(script, allow_io=False):
+                command, _ = guard.sandboxed(["sh", "-c", script], project, request, allow_io)
+                return subprocess.run(command, cwd=project, capture_output=True).returncode
+
+            self.assertNotEqual(run("echo x > Escaped.lean"), 0)
+            self.assertEqual(run("echo x > .lake/ok && echo x > .vibecheck/chat/x/1/ok"), 0)
+            self.assertEqual(run("echo x > Escaped.lean", allow_io=True), 0)
+            server = HTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
+            thread = threading.Thread(target=server.handle_request, daemon=True)
+            thread.start()
+            try:
+                port = server.server_address[1]
+                probe = f"exec 3<>/dev/tcp/127.0.0.1/{port}" if shutil.which("bash") else "false"
+                fetch = lambda allow_io: run(f"bash -c '{probe}'", allow_io)
+                self.assertNotEqual(fetch(False), 0)
+                self.assertEqual(fetch(True), 0)
+            finally:
+                server.server_close()
 
 
 if __name__ == "__main__":

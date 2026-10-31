@@ -23,7 +23,12 @@ This event preview is published for review with the license decision pending. It
 
 ## Local data
 
-The runner executes submitted Lean with the host's normal permissions. It is not a sandbox.
+Checking Lean runs it. The runner refuses submissions that run commands, touch files, read the environment
+or open the network unless `--allow-io` is given, and runs checks inside the OS sandbox where one exists
+(sandbox-exec on macOS, bubblewrap on Linux): no network, writes only to the build folder and temp,
+no reading of credential folders. The gate is a text check, so the sandbox is the real boundary;
+without one, only the gate applies. `python3 scripts/guard.py status` names the sandbox in use.
+Setup never calls sudo: a step that needs administrator rights prints the command for you to run.
 Profiles, submitted code and compiler output stay in local profile and project folders.
 Dependency installers download their tools; API examples contact the endpoint you select.
 Generated projects ignore chat transcripts, generated start and lesson pages, progress notes and environment files in Git.
@@ -45,6 +50,7 @@ scripts/doctor.py             read-only environment check
 scripts/setup.py              plan, install and recheck missing requirements for the chosen mode
 scripts/bootstrap.sh          install steps: prereqs, elan, vscode, uv, rust, hax, node, mcp, open
 scripts/chat.py               spool chat submissions, run Lean and return compiler results
+scripts/guard.py              gate for code that reaches outside Lean; OS sandbox for checks and runs
 scripts/lesson.py             show, render and Lean-check the illustrated lessons; align syntax trees
 scripts/new_project.py        project scaffold, optionally from a starter
 scripts/detect_repo.py        language detection, route choice, first targets

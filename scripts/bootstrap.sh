@@ -12,25 +12,46 @@
 #   hax             install cargo-hax (Rust -> Lean via Charon + Aeneas)
 #   open DIR [FILE] open a project in the editor
 #
-# Every step is idempotent and prints each command before running it.
+# Every step is idempotent and prints each command before running it. Steps never
+# call sudo: when a system package needs administrator rights, the step prints the
+# command for the user to run and exits with status 3.
 set -euo pipefail
 export PATH="$HOME/.elan/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 say() { printf '\n==> %s\n' "$*"; }
 run() { printf '    $ %s\n' "$*"; "$@"; }
 
+# Run system package commands as root, or hand them to the user.
 as_root() {
-  if [ "$(id -u)" = 0 ]; then run "$@"; else run sudo "$@"; fi
+  if [ "$(id -u)" = 0 ]; then
+    for command in "$@"; do run sh -c "$command"; done
+    return
+  fi
+  joined=""
+  for command in "$@"; do joined="${joined:+$joined && }sudo $command"; done
+  echo "This step needs administrator rights. Run this yourself, then rerun setup:" >&2
+  echo "    $joined" >&2
+  exit 3
+}
+
+# Download an official installer to a file over HTTPS, then run it from there.
+fetch_and_run() {
+  url="$1"; shift
+  script="$(mktemp)"
+  status=0
+  run curl --proto '=https' --tlsv1.2 -sSfL "$url" -o "$script" || status=$?
+  [ "$status" = 0 ] && { run sh "$script" "$@" || status=$?; }
+  rm -f "$script"
+  return "$status"
 }
 
 packages() {
   if command -v brew >/dev/null 2>&1; then
     run brew install "$@"
   elif command -v apt-get >/dev/null 2>&1; then
-    as_root apt-get update
-    as_root apt-get install -y "$@"
+    as_root "apt-get update" "apt-get install -y $*"
   elif command -v dnf >/dev/null 2>&1; then
-    as_root dnf install -y "$@"
+    as_root "dnf install -y $*"
   else
     echo "No supported package manager found. Install these packages, then rerun setup: $*" >&2
     return 1
@@ -77,8 +98,7 @@ case "$step" in
       if ! lean --version >/dev/null 2>&1; then run elan default "$requested_toolchain"; fi
     else
       say "installing elan (the Lean version manager) and stable Lean"
-      curl -sSf https://elan.lean-lang.org/elan-init.sh \
-        | sh -s -- -y --default-toolchain "$requested_toolchain"
+      fetch_and_run https://elan.lean-lang.org/elan-init.sh -y --default-toolchain "$requested_toolchain"
       echo "    open a new terminal, or run: source \"\$HOME/.elan/env\""
     fi
     ;;
@@ -99,12 +119,12 @@ case "$step" in
   uv)
     if command -v uvx >/dev/null 2>&1; then say "uv already installed"; exit 0; fi
     say "installing uv"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    if command -v brew >/dev/null 2>&1; then run brew install uv; else fetch_and_run https://astral.sh/uv/install.sh; fi
     ;;
   rust)
     if command -v cargo >/dev/null 2>&1; then say "Rust already installed"; exit 0; fi
     say "installing Rust for the extraction route"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+    fetch_and_run https://sh.rustup.rs -y --profile minimal
     ;;
   node)
     if command -v node >/dev/null 2>&1; then say "Node.js already installed"; exit 0; fi

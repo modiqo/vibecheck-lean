@@ -34,8 +34,10 @@ python3 <skill>/scripts/chat.py --project DIR --session api-check-L1 --context-f
 This command runs the actual CLI against a local service supplied for the lesson:
 
 ```bash
-python3 <skill>/scripts/chat.py --project DIR --run Learn/ApiCheck.lean --arg http://127.0.0.1:8000/health
+python3 <skill>/scripts/chat.py --project DIR --run Learn/ApiCheck.lean --arg http://127.0.0.1:8000/health --allow-io
 ```
+
+The program runs curl, so it needs `--allow-io`. Snippets checked against `--context-file` do not.
 
 Start the local fixture before running that command, or use an endpoint the learner selected.
 Use a local fixture for reproducible grading. Never invent a remote service result or require an API key for the first lesson.
