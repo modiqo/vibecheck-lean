@@ -43,7 +43,7 @@ class InstallerTests(unittest.TestCase):
         (self.source / "scripts/chat.py").write_text("# installer fixture\n")
         for arguments in [["init", "-q"], ["add", "."],
                           ["-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-qm", "Fixture"],
-                          ["tag", "v0.1.0-event-preview"]]:
+                          ["tag", "v0.2.0-event-preview"]]:
             subprocess.run(["git", *arguments], cwd=self.source, check=True, capture_output=True)
         self.home = self.root / "home with spaces"
 

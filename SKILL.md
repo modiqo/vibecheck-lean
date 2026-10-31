@@ -1,6 +1,8 @@
 ---
 name: vibecheck-lean
 description: Teach Lean 4, build verified apps, specify existing code, or refresh proof skills. Installs missing dependencies, executes Lean submitted in chat or opens an editor, tracks learning progress, and audits proof claims. Supports Lean-native proofs, port-and-prove with differential tests, Rust extraction, and protocol models. Use for Lean, lake, mathlib, theorem proving, formal verification, sorry, verified software, the VibeCheck hackathon, or requests to verify a repository or prove a function correct.
+metadata:
+  version: 0.2.0
 ---
 
 # vibecheck-lean
