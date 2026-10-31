@@ -25,6 +25,8 @@ Start a new agent chat and say:
 - **Verify:** bring existing code and state what must always hold.
 - **Refresh:** revisit what you learned with short, spaced drills.
 
+Every level opens with an illustrated lesson: each piece of new syntax labelled in an annotated tree,
+what Lean accepts and rejects (with the errors it really prints), and one exercise to try right away.
 Type Lean directly in chat. Get the actual result, a small syntax tree and an explanation of each step.
 The agent helps install missing Lean tools and keeps your progress between lessons.
 

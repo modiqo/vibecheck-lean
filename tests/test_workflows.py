@@ -20,6 +20,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import chat
 import doctor
+import lesson
 
 # Avoid a third-party module named setup when invoked by a test runner.
 spec = importlib.util.spec_from_file_location("vibecheck_setup", SCRIPTS / "setup.py")
@@ -264,6 +265,8 @@ class ChatIntegrationTests(unittest.TestCase):
         self.assertNotIn("opened_browser", report)
         self.assertTrue(Path(report["exercise"]).exists())
         self.assertIn("Paste Lean code", Path(report["start_page"]).read_text())
+        self.assertTrue(report["lesson"].endswith("L1.md"))
+        self.assertIn("Run one exercise now", Path(report["lesson_page"]).read_text())
 
     def test_context_file_uses_current_project_source_without_copying_it_into_history(self):
         lesson = self.project / "Lesson.lean"
@@ -336,6 +339,38 @@ class ChatIntegrationTests(unittest.TestCase):
             server.shutdown()
             thread.join(timeout=2)
             server.server_close()
+
+
+class LessonTests(unittest.TestCase):
+    def test_every_level_has_a_lesson_that_ends_on_a_real_exercise(self):
+        for level in lesson.LEVELS:
+            text = lesson.lesson_file(level).read_text()
+            self.assertTrue(lesson.title_of(text).startswith(level), level)
+            self.assertTrue(lesson.exercise_of(text).startswith("Exercise " + level[1]), level)
+
+    def test_tree_branches_sit_under_their_pieces(self):
+        code = "def double (n : Nat) : Nat := n + n"
+        drawn = lesson.tree(code, [("def", "define"), ("(n : Nat)", "input"), ("n + n", "body")]).splitlines()
+        self.assertEqual(drawn[0], code)
+        self.assertEqual(lesson.tree_columns(drawn), [0, 11, 30])
+        self.assertTrue(drawn[1].endswith("└─ body"))
+        with self.assertRaises(ValueError):
+            lesson.tree(code, [("n + n", "body"), ("def", "out of order")])
+
+    def test_page_shows_progress_merges_one_liners_and_hides_answers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            page = lesson.render("L2", Path(directory), {"topics": {"L1": {}}}).read_text()
+        self.assertIn('class="chip done" href="L1.html">✓ L1', page)
+        self.assertIn('class="chip here" href="L2.html">L2', page)
+        self.assertIn("<details><summary>Answer</summary>", page)
+        self.assertIn("✗ Lean rejects this", page)
+        self.assertIn("<b>Lean says:</b> omega could not prove the goal", page)
+
+    @unittest.skipUnless(lesson.lean_cmd(), "requires installed Lean")
+    def test_every_example_does_what_its_lesson_says(self):
+        for level in lesson.LEVELS:
+            result = lesson.check(level)
+            self.assertTrue(result["ok"], f"{level}: {result['problems']}")
 
 
 if __name__ == "__main__":

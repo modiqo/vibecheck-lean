@@ -11,6 +11,7 @@ From this skill folder, these commands print a dependency plan and run the workf
 ```bash
 python3 scripts/setup.py --rung learn --mode chat
 python3 -m unittest discover -s tests -v
+python3 scripts/lesson.py check
 ```
 
 After approving any missing dependencies, ask your agent to apply the plan and start the lesson.
@@ -25,7 +26,7 @@ This event preview is published for review with the license decision pending. It
 The runner executes submitted Lean with the host's normal permissions. It is not a sandbox.
 Profiles, submitted code and compiler output stay in local profile and project folders.
 Dependency installers download their tools; API examples contact the endpoint you select.
-Generated projects ignore chat transcripts, generated start pages, progress notes and environment files in Git.
+Generated projects ignore chat transcripts, generated start and lesson pages, progress notes and environment files in Git.
 They include portable audit tools, so sharing a project does not require publishing the skill's local installation path.
 
 ## Before the event
@@ -44,6 +45,7 @@ scripts/doctor.py             read-only environment check
 scripts/setup.py              plan, install and recheck missing requirements for the chosen mode
 scripts/bootstrap.sh          install steps: prereqs, elan, vscode, uv, rust, hax, node, mcp, open
 scripts/chat.py               spool chat submissions, run Lean and return compiler results
+scripts/lesson.py             show, render and Lean-check the illustrated lessons; align syntax trees
 scripts/new_project.py        project scaffold, optionally from a starter
 scripts/detect_repo.py        language detection, route choice, first targets
 scripts/audit.py              proof audit and VERIFICATION.md
@@ -54,6 +56,7 @@ assets/starters/              undo, gcounter, rle (with reference solutions)
 assets/recipes/               KvApp.lean (complete verified app), IoRecipes.lean
 assets/spec-patterns/         one compiled example per spec-interview question
 assets/template/, difftest/   scaffold files; differential-test server and harness
+references/lessons/           L1–L8 lessons: annotated syntax, accepted and rejected examples, one exercise
 references/                   primer, learn, refresh, spec-elicitation, app-recipes,
                               track playbooks, judging, other tools
 ```

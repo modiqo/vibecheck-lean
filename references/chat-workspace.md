@@ -118,6 +118,8 @@ Keep diagnostic commands separate from the learner's submitted code and accepted
 Describe the chain as an explanation of reduction, not a recorded trace of the compiled `#eval` runtime.
 For effects or opaque definitions, explain only the steps supported by the available output and definitions.
 
+For a declaration that uses syntax the learner hasn't met, label each piece with `lesson.py tree`;
+it aligns the tree, so never draw one by hand. Each level's lesson in `references/lessons/` has examples.
 For `#check`, explain the resulting type instead of inventing evaluation steps.
 For proofs, show the goal before and after the tactic. For errors, explain the failing node or goal.
 Honor requests for result-only output, and record that preference in the learner profile.

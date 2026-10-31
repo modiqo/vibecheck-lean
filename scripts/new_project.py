@@ -87,7 +87,7 @@ name = "{pkg}"
 root = "Main"
 ''')
     write(root / ".gitignore", "/.lake\n/.vibecheck/Audit.lean\n/.vibecheck/chat/\n"
-          "/.vibecheck/start.html\n/.vibecheck/progress.json\n__pycache__/\n*.pyc\n.env\n.env.*\n*.pem\n*.key\n")
+          "/.vibecheck/start.html\n/.vibecheck/lessons/\n/.vibecheck/progress.json\n__pycache__/\n*.pyc\n.env\n.env.*\n*.pem\n*.key\n")
     # Ship portable audit tools with the project, rather than exposing the
     # skill installation path or requiring judges to install the same skill.
     for filename in ("audit.py", "doctor.py", "Audit.lean.tmpl"):

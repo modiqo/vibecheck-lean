@@ -191,6 +191,12 @@ Grow one runnable API checker through the ladder, with proofs introduced on its 
 Save the project track and milestone. Refreshers revisit that same code with new proof tasks.
 For standalone exercises, save `learning_track` as `exercises` and use the exercise ladder below.
 
+Open every level with its illustrated lesson (`references/lessons/L<n>.md`; how to
+deliver it is in `references/learn.md`): annotated syntax trees, what Lean accepts and
+rejects with its real errors, and one exercise to run right away. Show the trees verbatim
+in code blocks, run one accepted and one rejected example live, and end by inviting them to
+paste their attempt. `lesson.py tree` aligns a tree for any line of their own code.
+
 Give the ten-minute idea from `references/primer.md` in your own words, then go
 straight to the ladder in `references/learn.md`: playground project, placement,
 the language bridge, then `launch.py learn --project … --level L<n> --mode MODE`. Work

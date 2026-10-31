@@ -11,6 +11,8 @@ RUNG is one of: spec-existing, build-app, learn, refresh.
 --level copies that exercise into DIR/Learn/ if it isn't there yet and opens it. On the
 learn rung, when the profile lists Python, TypeScript or JavaScript, the language bridge is
 copied to DIR/Learn/Bridge.lean and opened alongside. --also opens extra files.
+On the learn rung the level's illustrated lesson (references/lessons/L<n>.md) is rendered to
+DIR/.vibecheck/lessons/ and, in editor mode, opened in the browser; the JSON names both files.
 --dry-run touches nothing (no copies, no start page, no windows) and says so in the JSON. The Lean extension is only installed with --install-extension: without
 it, a missing extension is reported (`"extension": "missing"`) so you can ask first.
 Prints a JSON summary of what it did.
@@ -25,6 +27,9 @@ import sys
 import webbrowser
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lesson  # noqa: E402
 
 SKILL = Path(__file__).resolve().parent.parent
 HOME = Path(os.environ.get("VIBECHECK_HOME", Path.home() / ".vibecheck"))
@@ -186,6 +191,12 @@ def start_page(rung, profile, project, opened_file, mode="editor"):
         facts.append("Worth revisiting: " + e(", ".join(profile["weak_spots"])))
     if due:
         facts.append("Due for review today: " + e(", ".join(sorted(due))))
+    if rung == "learn" and opened_file:
+        import re as _re
+        m = _re.search(r"L[1-8]", opened_file) if "Learn/L" in opened_file else None
+        lv = m.group(0) if m else profile.get("project_level")
+        if lv:
+            facts.append(f'Today\'s lesson: <a href="lessons/{e(lv)}.html">{e(lv)}, illustrated</a>')
     facts_html = "".join(f"<li>{f}</li>" for f in facts)
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>vibecheck-lean: {e(r['title'])}</title>
@@ -285,6 +296,18 @@ def main() -> int:
         target = f"Learn/{src.name}"
     mode = a.mode or profile.get("workspace_mode", "editor")
     out["mode"] = mode
+
+    # the illustrated lesson for this level
+    level = (a.level or (profile.get("project_level", "L1") if track == "api-check" else None))
+    lesson_page = None
+    if a.rung == "learn" and level and level.upper() in lesson.LEVELS:
+        level = level.upper()
+        out["lesson"] = str(lesson.lesson_file(level))
+        lesson_dir = (project / ".vibecheck" / "lessons") if project else HOME / "lessons"
+        lesson_page = lesson_dir / f"{level}.html"
+        if not a.dry_run:
+            lesson.render(level, lesson_dir, profile)
+        out["lesson_page"] = str(lesson_page)
     extra = [Path(x).expanduser() for x in a.also]
     langs = {l.lower() for l in profile.get("languages", [])}
     if a.rung == "learn" and project and langs & {"python", "typescript", "javascript", "ts", "js"}:
@@ -336,8 +359,9 @@ def main() -> int:
             subprocess.run(args)
         out["opened_editor"] = args[1:]
     if not a.no_browser and mode == "editor":
-        out["opened_browser"] = [page.as_uri(), LOOGLE]
-        open_url(page.as_uri(), a.dry_run)
+        first = lesson_page or page
+        out["opened_browser"] = [first.as_uri(), LOOGLE]
+        open_url(first.as_uri(), a.dry_run)
         open_url(LOOGLE, a.dry_run)
     print(json.dumps(out, indent=2))
     return 0

@@ -37,6 +37,37 @@ If the learner requests standalone exercises, save `learning_track` as `exercise
    exercise, opens VS Code on it (installing the Lean extension first if they
    agreed), and opens the start page and Loogle in the browser.
 
+## Open every level with its lesson
+
+Each level has an illustrated lesson in `references/lessons/L1.md` … `L8.md`. Each lesson:
+
+- breaks new syntax into an annotated tree that labels every piece of a line;
+- shows the goal changing in the Lean panel;
+- shows examples Lean accepts, and examples it rejects, with the error it really prints;
+- gives a rule of thumb and a few check-yourself questions;
+- ends on **one exercise to run now**.
+
+Every example has been compiled: `lesson.py check` confirms that each ✓ block compiles, each ✗ block fails with the quoted error, each `#eval` prints what the lesson says, and each tree lines up with its code.
+
+Lessons apply to both tracks. On the API checker track, teach the level's lesson first, then apply it to `ApiCheck.lean`; its last line says how.
+
+Deliver it as a short story rather than a file dump:
+
+1. **Open with the hook**, the lesson's first paragraph, in your own words, tied to code they care about.
+2. **Show the annotated trees exactly as written**, in code blocks so the columns stay aligned, with one or two sentences after each. This is what builds confidence: every symbol on the line has a name and a job.
+3. **Show one ✓ and one ✗ live.** Run the first accepted example, then a rejected one, through `chat.py --fresh` (or the editor). That way they see real Lean output, and an error that was predicted in advance. Show the remaining examples as written; they're already checked.
+4. **Give the rule of thumb** and ask one check-yourself question. Wait for the answer before revealing it.
+5. **End on the exercise**, the "Run one exercise now" section. Make it an invitation: paste a try and see what Lean says, and either result is progress. Then stop and wait for their code. Don't add the next idea.
+
+Before teaching, `lesson.py show L<n>` prints a lesson; read it then. In editor mode, `launch.py` renders the illustrated page and opens it alongside the exercise. In chat mode, offer the page once: "Want the illustrated version in your browser?" Then run `lesson.py render L<n> --project DIR --open`.
+
+When a learner's own code uses syntax they haven't met, explain it the same way. Generate an aligned tree for that line rather than drawing one by hand:
+
+```bash
+python3 <skill>/scripts/lesson.py tree 'theorem t (n : Nat) : n ≤ n + 1 := by omega' \
+  'theorem t' 'a fact named t' '(n : Nat)' 'for any whole number n' 'n ≤ n + 1' 'the statement' 'omega' 'the proof step'
+```
+
 ## How to teach
 
 - **Show, then share, then hand over.** For each new idea: you do a worked example
@@ -60,6 +91,8 @@ never open those in front of the learner unless asked). Copy a level into the
 learner's project folder as `Learn/LN_Name.lean`, open it in the editor, and work
 through it. A level is done when `lake env lean Learn/LN_Name.lean`, run in the
 project folder (or the file in the editor), shows no errors and no `sorry` warnings.
+
+Each level's lesson ends on the exercise named in `lesson.py list`; the rest of the file is for practice after that first win.
 
 | Level | File | New idea | The software skill it unlocks |
 | --- | --- | --- | --- |

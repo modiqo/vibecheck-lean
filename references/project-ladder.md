@@ -56,7 +56,9 @@ Agree on each property's English meaning before writing its Lean statement.
 | L7: invariant types | Validate configuration and carry a bounded positive attempt count in its type | Prove every constructed configuration satisfies its limits; show a valid configuration exists |
 | L8: structural induction | Add a small check-plan language and compile it to command plans | Prove compilation preserves the pure plan semantics and keeps the URL as one command argument |
 
-Provide new syntax as a worked example; leave a related change and proof to the learner.
+Open each milestone with that level's lesson (`references/lessons/L<n>.md`, delivered as described in
+`references/learn.md`): annotated syntax, accepted and rejected examples, one standalone exercise.
+Then provide the milestone's new syntax as a worked example; leave a related change and proof to the learner.
 Keep the program runnable after every increment. Use one small change per 15-minute lesson.
 Give hints before solutions, and show actual goals after proof tactics.
 Do not write all eight implementations or proofs in advance and count them as learner progress.
